@@ -87,6 +87,77 @@ body::after {
   box-shadow: var(--shadow-soft);
 }
 
+.hidden {
+  display: none !important;
+}
+
+.auth-bar {
+  padding: clamp(0.9rem, 1.8vw, 1.1rem);
+  background: linear-gradient(165deg, rgba(255, 255, 255, 0.95), rgba(248, 251, 255, 0.86));
+}
+
+.auth-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.9rem;
+}
+
+.auth-current {
+  margin: 0;
+  color: var(--brand-strong);
+  font-weight: 800;
+  font-size: 0.93rem;
+}
+
+.auth-form {
+  margin-top: 0.7rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto auto auto;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.auth-form input {
+  width: 100%;
+  border: 1px solid #d2dceb;
+  border-radius: 10px;
+  padding: 0.55rem 0.66rem;
+  font: inherit;
+  color: var(--ink);
+  background: #fff;
+}
+
+.auth-form input:focus {
+  outline: 2px solid rgba(15, 107, 119, 0.2);
+  border-color: rgba(15, 107, 119, 0.44);
+}
+
+.auth-user {
+  margin-top: 0.7rem;
+  display: flex;
+  justify-content: flex-start;
+}
+
+.auth-status {
+  margin: 0.52rem 0 0;
+  min-height: 1.12rem;
+  font-weight: 700;
+  font-size: 0.86rem;
+}
+
+.auth-status.info {
+  color: #264b83;
+}
+
+.auth-status.success {
+  color: var(--success);
+}
+
+.auth-status.error {
+  color: var(--danger);
+}
+
 .hero {
   padding: clamp(1.2rem, 2.5vw, 2rem);
   display: grid;
@@ -572,6 +643,10 @@ kbd {
 }
 
 @media (max-width: 980px) {
+  .auth-form {
+    grid-template-columns: 1fr 1fr;
+  }
+
   .hero,
   .content-grid {
     grid-template-columns: 1fr;
@@ -607,6 +682,37 @@ kbd {
     width: min(100%, 95.5vw);
     margin: 0.9rem auto 1.5rem;
     gap: 0.85rem;
+  }
+
+  .auth-bar {
+    padding: 0.78rem;
+    border-radius: 16px;
+  }
+
+  .auth-current {
+    font-size: 0.82rem;
+  }
+
+  .auth-form {
+    margin-top: 0.55rem;
+    grid-template-columns: 1fr;
+    gap: 0.45rem;
+  }
+
+  .auth-form input {
+    font-size: 0.85rem;
+    padding: 0.5rem 0.58rem;
+    border-radius: 9px;
+  }
+
+  .auth-user {
+    margin-top: 0.54rem;
+  }
+
+  .auth-status {
+    margin-top: 0.4rem;
+    font-size: 0.78rem;
+    min-height: 1rem;
   }
 
   .hero,

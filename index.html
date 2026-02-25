@@ -11,6 +11,27 @@
 </head>
 <body>
   <main class="app-shell">
+    <section class="auth-bar panel reveal">
+      <div class="auth-head">
+        <p class="meta-label">Account</p>
+        <p id="authCurrent" class="auth-current"></p>
+      </div>
+
+      <div id="authGuestActions" class="auth-form">
+        <input id="authUsername" type="text" autocomplete="username" placeholder="Profile name">
+        <input id="authPassword" type="password" autocomplete="current-password" placeholder="4+ digit PIN">
+        <button id="loginBtn" class="ghost-btn" type="button">Log in</button>
+        <button id="signupBtn" class="ghost-btn ghost-btn-brand" type="button">Create profile</button>
+        <button id="continueGuestBtn" class="ghost-btn" type="button">Continue as guest</button>
+      </div>
+
+      <div id="authUserActions" class="auth-user hidden">
+        <button id="logoutBtn" class="ghost-btn" type="button">Log out</button>
+      </div>
+
+      <p id="authStatus" class="auth-status" aria-live="polite"></p>
+    </section>
+
     <header class="hero panel reveal">
       <div class="hero-copy">
         <p class="kicker">Pronunciation Studio</p>

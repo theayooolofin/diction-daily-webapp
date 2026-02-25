@@ -1,6 +1,17 @@
 const DAILY_COUNT = 5;
 const HISTORY_LIMIT = 150;
-const STORAGE_KEY = "diction-daily-state-v1";
+const AUTH_SESSION_KEY = "diction-auth-session-v2";
+const AUTH_PROFILES_KEY = "diction-auth-profiles-v1";
+const GUEST_USER_ID = "__guest";
+const STORAGE_KEY_PREFIX = "diction-daily-state-v1";
+const MIN_PROFILE_NAME_LEN = 2;
+const MAX_PROFILE_NAME_LEN = 24;
+const MIN_PIN_LEN = 4;
+
+const authSession = loadAuthSession();
+const activeUserId = resolveActiveUserId(authSession);
+const STORAGE_KEY = `${STORAGE_KEY_PREFIX}:${activeUserId}`;
+const localProfiles = loadLocalProfiles();
 
 const WORD_BANK = [
   { id: "abundant", word: "abundant", part: "adjective", meaning: "Existing in large quantities; plentiful.", example: "Her garden produced abundant tomatoes this summer." },
@@ -87,6 +98,17 @@ const WORD_BY_ID = Object.fromEntries(
   WORD_BANK_ENRICHED.map((item) => [item.id, item])
 );
 
+const authCurrentEl = document.getElementById("authCurrent");
+const authGuestActionsEl = document.getElementById("authGuestActions");
+const authUserActionsEl = document.getElementById("authUserActions");
+const authStatusEl = document.getElementById("authStatus");
+const authUsernameInput = document.getElementById("authUsername");
+const authPasswordInput = document.getElementById("authPassword");
+const loginBtn = document.getElementById("loginBtn");
+const signupBtn = document.getElementById("signupBtn");
+const continueGuestBtn = document.getElementById("continueGuestBtn");
+const logoutBtn = document.getElementById("logoutBtn");
+
 const todayDateEl = document.getElementById("todayDate");
 const progressTextEl = document.getElementById("progressText");
 const progressFillEl = document.getElementById("progressFill");
@@ -114,28 +136,21 @@ let recognitionInProgress = false;
 let lastRenderedWordId = "";
 
 const dateKey = getDateKey();
-const appState = loadState();
+let appState = loadState();
 ensureStateShape(appState);
+let dayState = {};
+let dailyWords = [];
 
-if (!appState[dateKey]) {
-  const defaultWordIds = getDailyWords(dateKey, DAILY_COUNT).map((item) => item.id);
-  appState[dateKey] = createDayState(defaultWordIds);
-  addHistoryEntry(defaultWordIds, "Daily set");
-}
-
-const dayState = appState[dateKey];
-sanitizeDayState(dayState);
-
-let dailyWords = hydrateWords(dayState.wordIds);
-if (dailyWords.length !== DAILY_COUNT) {
-  dayState.wordIds = normalizeWordIds(dayState.wordIds, "fallback");
-  dailyWords = hydrateWords(dayState.wordIds);
-}
-
-addHistoryEntry(dayState.wordIds, "Current set");
-adjustCurrentIndex();
+hydrateDailyState();
 saveState(appState);
 render();
+if (activeUserId === GUEST_USER_ID) {
+  setAuthStatus("Guest mode is active on this device.", "info");
+} else {
+  const profile = getProfileById(activeUserId);
+  const label = profile?.displayName || authSession.profileName || "Local profile";
+  setAuthStatus(`Signed in as ${label}.`, "success");
+}
 
 playSoundBtn.addEventListener("click", () => {
   const word = dailyWords[dayState.currentIndex];
@@ -202,6 +217,27 @@ resetBtn.addEventListener("click", () => {
   setStatus("Progress reset for the current set.", "info");
 });
 
+signupBtn.addEventListener("click", () => {
+  void handleSignup();
+});
+
+loginBtn.addEventListener("click", () => {
+  void handleLogin();
+});
+
+continueGuestBtn.addEventListener("click", () => {
+  if (activeUserId === GUEST_USER_ID) {
+    setAuthStatus("Already in guest mode.", "info");
+    return;
+  }
+
+  void switchToGuestMode();
+});
+
+logoutBtn.addEventListener("click", () => {
+  void switchToGuestMode();
+});
+
 document.addEventListener("keydown", handleShortcuts);
 
 function getDateKey() {
@@ -241,9 +277,142 @@ function seededRandom(seedText) {
   };
 }
 
+function loadAuthSession() {
+  try {
+    const raw = localStorage.getItem(AUTH_SESSION_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch (_) {
+    return {};
+  }
+}
+
+function saveAuthSession(session) {
+  try {
+    localStorage.setItem(AUTH_SESSION_KEY, JSON.stringify(session));
+  } catch (_) {
+    // Ignore auth storage failures.
+  }
+}
+
+function resolveActiveUserId(session) {
+  if (session?.mode === "local" && typeof session.activeUser === "string" && session.activeUser) {
+    return session.activeUser;
+  }
+
+  session.mode = "guest";
+  session.activeUser = GUEST_USER_ID;
+  session.profileName = "";
+  saveAuthSession(session);
+  return GUEST_USER_ID;
+}
+
+function loadLocalProfiles() {
+  try {
+    const raw = localStorage.getItem(AUTH_PROFILES_KEY);
+    if (!raw) {
+      return [];
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+
+    const uniqueNameKeys = new Set();
+    const profiles = [];
+    for (let i = 0; i < parsed.length; i += 1) {
+      const profile = parsed[i];
+      if (!profile || typeof profile !== "object") {
+        continue;
+      }
+
+      const nameCandidate = typeof profile.displayName === "string" && profile.displayName
+        ? profile.displayName
+        : typeof profile.nameKey === "string"
+          ? profile.nameKey
+          : "";
+      const displayName = normalizeProfileName(nameCandidate);
+      const nameKey = getProfileNameKey(nameCandidate);
+      const pinHash = typeof profile.pinHash === "string" ? profile.pinHash : "";
+      if (!nameKey || !pinHash || uniqueNameKeys.has(nameKey)) {
+        continue;
+      }
+
+      const profileId = typeof profile.id === "string" && profile.id
+        ? profile.id
+        : `local-${slugifyProfileName(nameKey)}`;
+
+      profiles.push({
+        id: profileId,
+        nameKey,
+        displayName: displayName || nameKey,
+        pinHash,
+        createdAt: typeof profile.createdAt === "string" ? profile.createdAt : new Date().toISOString()
+      });
+      uniqueNameKeys.add(nameKey);
+    }
+
+    return profiles;
+  } catch (_) {
+    return [];
+  }
+}
+
+function saveLocalProfiles(profiles) {
+  try {
+    localStorage.setItem(AUTH_PROFILES_KEY, JSON.stringify(profiles));
+  } catch (_) {
+    // Ignore profile storage errors.
+  }
+}
+
+function normalizeProfileName(text) {
+  return text.replace(/\s+/g, " ").trim();
+}
+
+function getProfileNameKey(text) {
+  return normalizeProfileName(text).toLowerCase();
+}
+
+function slugifyProfileName(text) {
+  const slug = text
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return slug || "profile";
+}
+
+function hashPin(pin) {
+  let hash = 2166136261;
+  for (let i = 0; i < pin.length; i += 1) {
+    hash ^= pin.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function getProfileByNameKey(nameKey) {
+  return localProfiles.find((profile) => profile.nameKey === nameKey) || null;
+}
+
+function getProfileById(profileId) {
+  return localProfiles.find((profile) => profile.id === profileId) || null;
+}
+
 function loadState() {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
+    let raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw && activeUserId === GUEST_USER_ID) {
+      raw = localStorage.getItem(STORAGE_KEY_PREFIX);
+    }
+
     if (!raw) {
       return {};
     }
@@ -317,7 +486,7 @@ function normalizeWordIds(wordIds, seedLabel) {
   }
 
   if (uniqueIds.length < DAILY_COUNT) {
-    const fallbackIds = getDailyWords(`${dateKey}-${seedLabel}-fill`, WORD_BANK_ENRICHED.length).map((item) => item.id);
+    const fallbackIds = getDailyWords(`${dateKey}-${activeUserId}-${seedLabel}-fill`, WORD_BANK_ENRICHED.length).map((item) => item.id);
     for (let i = 0; i < fallbackIds.length; i += 1) {
       const id = fallbackIds[i];
       if (!seen.has(id)) {
@@ -347,6 +516,26 @@ function saveState(state) {
   }
 }
 
+function hydrateDailyState() {
+  if (!appState[dateKey]) {
+    const defaultWordIds = getDailyWords(`${dateKey}-${activeUserId}`, DAILY_COUNT).map((item) => item.id);
+    appState[dateKey] = createDayState(defaultWordIds);
+    addHistoryEntry(defaultWordIds, "Daily set");
+  }
+
+  dayState = appState[dateKey];
+  sanitizeDayState(dayState);
+
+  dailyWords = hydrateWords(dayState.wordIds);
+  if (dailyWords.length !== DAILY_COUNT) {
+    dayState.wordIds = normalizeWordIds(dayState.wordIds, "fallback");
+    dailyWords = hydrateWords(dayState.wordIds);
+  }
+
+  addHistoryEntry(dayState.wordIds, "Current set");
+  adjustCurrentIndex();
+}
+
 function adjustCurrentIndex() {
   if (!dailyWords.length) {
     dayState.currentIndex = 0;
@@ -370,6 +559,8 @@ function adjustCurrentIndex() {
 }
 
 function render() {
+  renderAuthState();
+
   if (!dailyWords.length) {
     setStatus("Could not load words for today.", "error");
     return;
@@ -426,6 +617,116 @@ function render() {
 
   renderWordList();
   renderHistory();
+}
+
+function renderAuthState() {
+  loginBtn.disabled = false;
+  signupBtn.disabled = false;
+
+  if (activeUserId === GUEST_USER_ID) {
+    authCurrentEl.textContent = "Guest mode (local on this device)";
+    authGuestActionsEl.classList.remove("hidden");
+    authUserActionsEl.classList.add("hidden");
+    return;
+  }
+
+  const profile = getProfileById(activeUserId);
+  const label = profile?.displayName || authSession.profileName || "Local profile";
+  authCurrentEl.textContent = `Signed in as ${label}`;
+  authGuestActionsEl.classList.add("hidden");
+  authUserActionsEl.classList.remove("hidden");
+}
+
+function setAuthStatus(text, tone = "info") {
+  authStatusEl.textContent = text;
+  authStatusEl.classList.remove("info", "success", "error");
+  authStatusEl.classList.add(tone);
+}
+
+async function handleSignup() {
+  const profileName = normalizeProfileName(authUsernameInput.value);
+  const pin = authPasswordInput.value.trim();
+  const nameKey = getProfileNameKey(profileName);
+
+  if (!nameKey) {
+    setAuthStatus("Enter a profile name.", "error");
+    return;
+  }
+
+  if (profileName.length < MIN_PROFILE_NAME_LEN || profileName.length > MAX_PROFILE_NAME_LEN) {
+    setAuthStatus(`Name must be ${MIN_PROFILE_NAME_LEN}-${MAX_PROFILE_NAME_LEN} characters.`, "error");
+    return;
+  }
+
+  if (!/^[a-z0-9 ]+$/i.test(profileName)) {
+    setAuthStatus("Use letters, numbers, and spaces only.", "error");
+    return;
+  }
+
+  if (!/^\d+$/.test(pin) || pin.length < MIN_PIN_LEN) {
+    setAuthStatus(`PIN must be at least ${MIN_PIN_LEN} digits.`, "error");
+    return;
+  }
+
+  if (getProfileByNameKey(nameKey)) {
+    setAuthStatus("That profile already exists. Use Log in instead.", "error");
+    return;
+  }
+
+  const profile = {
+    id: `local-${slugifyProfileName(nameKey)}`,
+    nameKey,
+    displayName: profileName,
+    pinHash: hashPin(pin),
+    createdAt: new Date().toISOString()
+  };
+
+  localProfiles.push(profile);
+  saveLocalProfiles(localProfiles);
+
+  authSession.mode = "local";
+  authSession.activeUser = profile.id;
+  authSession.profileName = profile.displayName;
+  saveAuthSession(authSession);
+  setAuthStatus("Profile created. Loading your personal data...", "success");
+  location.reload();
+}
+
+async function handleLogin() {
+  const profileName = normalizeProfileName(authUsernameInput.value);
+  const pin = authPasswordInput.value.trim();
+  const nameKey = getProfileNameKey(profileName);
+
+  if (!nameKey || !pin) {
+    setAuthStatus("Enter your profile name and PIN.", "error");
+    return;
+  }
+
+  const profile = getProfileByNameKey(nameKey);
+  if (!profile) {
+    setAuthStatus("Profile not found. Use Sign up to create it.", "error");
+    return;
+  }
+
+  if (profile.pinHash !== hashPin(pin)) {
+    setAuthStatus("Incorrect PIN.", "error");
+    return;
+  }
+
+  authSession.mode = "local";
+  authSession.activeUser = profile.id;
+  authSession.profileName = profile.displayName;
+  saveAuthSession(authSession);
+  setAuthStatus("Logged in. Loading your personal data...", "success");
+  location.reload();
+}
+
+async function switchToGuestMode() {
+  authSession.mode = "guest";
+  authSession.activeUser = GUEST_USER_ID;
+  authSession.profileName = "";
+  saveAuthSession(authSession);
+  location.reload();
 }
 
 function renderWordList() {
