@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diction Daily</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Fraunces:opsz,wght@9..144,500;9..144,700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main class="app-shell">
+    <header class="hero panel reveal">
+      <div class="hero-copy">
+        <p class="kicker">Pronunciation Studio</p>
+        <h1>Learn 5 New Words, Speak Them Clearly.</h1>
+        <p class="subtitle">Daily vocabulary with instant speaking practice for meaning, sound, and confidence.</p>
+        <div class="hero-tags" aria-label="Core features">
+          <span class="tag">Word + Meaning</span>
+          <span class="tag">Audio Playback</span>
+          <span class="tag">Mic Practice</span>
+        </div>
+      </div>
+
+      <div class="hero-progress">
+        <p class="meta-label">Today</p>
+        <p id="todayDate" class="today-date"></p>
+        <p id="progressText" class="progress-number"></p>
+        <div class="progress-track" aria-hidden="true">
+          <div id="progressFill" class="progress-fill"></div>
+        </div>
+        <div class="hero-kpis">
+          <article class="kpi-card">
+            <p class="meta-label">Current Streak</p>
+            <p id="streakText" class="kpi-value">0 days</p>
+          </article>
+          <button id="newSetBtn" class="ghost-btn ghost-btn-brand" type="button">Generate new 5 words</button>
+          <button id="resetBtn" class="ghost-btn" type="button">Reset today</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="content-grid">
+      <article id="wordStage" class="word-stage panel reveal">
+        <div class="stage-head">
+          <p id="wordCounter" class="word-counter"></p>
+          <p id="dailyMessage" class="daily-message" aria-live="polite"></p>
+        </div>
+
+        <h2 id="wordText" class="word-text"></h2>
+        <p id="wordMeta" class="word-meta"></p>
+        <p id="wordSound" class="word-sound"></p>
+        <p id="wordMeaning" class="word-meaning"></p>
+
+        <div class="example-block">
+          <p class="example-label">Example</p>
+          <p id="wordExample" class="word-example"></p>
+        </div>
+
+        <div class="actions">
+          <button id="playSoundBtn" class="btn-primary" type="button">Play sound</button>
+          <button id="speakBtn" class="btn-accent" type="button">Start speaking</button>
+          <button id="markBtn" class="btn-soft" type="button">Mark practiced</button>
+          <button id="nextBtn" class="btn-ghost" type="button">Next word</button>
+        </div>
+
+        <p id="speechStatus" class="status" aria-live="polite"></p>
+        <p class="hint">Shortcuts: <kbd>Space</kbd> play sound, <kbd>S</kbd> speak, <kbd>M</kbd> mark, <kbd>N</kbd> next, <kbd>G</kbd> generate new set.</p>
+      </article>
+
+      <div class="side-stack">
+        <aside class="word-list panel reveal">
+          <h3>Today's 5 words</h3>
+          <p class="list-note">Click any word to jump directly.</p>
+          <ol id="wordList" class="word-list-items"></ol>
+        </aside>
+
+        <aside class="history panel reveal">
+          <h3>History of generated sets</h3>
+          <p class="list-note">All 5-word sets you have generated so far.</p>
+          <ul id="historyList" class="history-items"></ul>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
